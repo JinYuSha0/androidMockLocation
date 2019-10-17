@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">MockLocation</string>
+    <string name="ok">是</string>
+    <string name="no">否</string>
+    <string name="allow_location_permission">请允许定位权限</string>
+    <string name="setting_mock_location">设置模拟定位</string>
+    <string name="allow_mock_location">请在开发中选项->调试->选择模拟位置信息应用中选中本程序</string>
+    <string name="search_address">搜索地址</string>
+    <string name="start_mock">开始模拟</string>
+    <string name="stop_mock">停止模拟</string>
+</resources>
