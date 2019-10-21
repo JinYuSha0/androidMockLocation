@@ -11,17 +11,22 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Build;
-import android.os.PersistableBundle;
 import android.provider.Settings;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.AppCompatButton;
 import androidx.core.app.ActivityCompat;
 import androidx.appcompat.widget.Toolbar;
+import androidx.lifecycle.Observer;
+import androidx.lifecycle.ViewModelProviders;
 
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.amap.api.location.AMapLocation;
@@ -32,27 +37,24 @@ import com.amap.api.maps2d.AMap;
 import com.amap.api.maps2d.CameraUpdateFactory;
 import com.amap.api.maps2d.LocationSource;
 import com.amap.api.maps2d.MapView;
-import com.amap.api.maps2d.UiSettings;
+import com.amap.api.maps2d.model.BitmapDescriptor;
+import com.amap.api.maps2d.model.BitmapDescriptorFactory;
 import com.amap.api.maps2d.model.LatLng;
+import com.amap.api.maps2d.model.Marker;
 import com.amap.api.maps2d.model.MarkerOptions;
-import com.amap.api.maps2d.model.MyLocationStyle;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-
-public class MainActivity extends AppCompatActivity implements LocationListener, LocationSource, AMapLocationListener {
+public class MainActivity extends AppCompatActivity implements LocationListener, LocationSource, AMapLocationListener, AMap.OnMapClickListener {
     private static final int MY_PERMISSIONS_REQUEST_FINE_LOCATION = 1;
-    private static final String Tag = "DDSJY";
+    public static final String Tag = "DDSJY";
 
     private MapView mapView;
     private AMap aMap;
-
     private AMapLocationClient mLocationClient;
     private AMapLocationClientOption mLocationOption;
     private OnLocationChangedListener mListener;
+    private MarkerOptions markerOption;
+    private BitmapDescriptor ICON_YELLOW = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW);
+    private Marker centerMark;
 
     private boolean isFirstLoc = true;
     private boolean isStartMock = false;
@@ -60,8 +62,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener,
     private Context mContext;
     private MockLocationProvider mockGPS;
     private MockLocationProvider mockWifi;
-    private Thread mockGpsThread;
-    private Thread mockWIfiThread;
+    private MockLoopThread mockGpsThread;
+    private MockLoopThread mockWIfiThread;
+    private CurrLocationInfoModel currLocationInfoModel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,18 +74,16 @@ public class MainActivity extends AppCompatActivity implements LocationListener,
         mContext = this.getApplicationContext();
 
         initActionBar();
+        observerLocationInfoModel();
 
         mapView = (MapView) findViewById(R.id.map);
         mapView.onCreate(savedInstanceState);
         aMap = mapView.getMap();
-
-        UiSettings settings = aMap.getUiSettings();
+        aMap.setOnMapClickListener(this);
         aMap.setLocationSource(this);
-        settings.setMyLocationButtonEnabled(true);
-        aMap.setMyLocationEnabled(true);
-
-        MyLocationStyle myLocationStyle = new MyLocationStyle();
-        aMap.setMyLocationStyle(myLocationStyle);
+        aMap.getUiSettings().setMyLocationButtonEnabled(true);
+        markerOption = new MarkerOptions().draggable(true);
+        markerOption.icon(ICON_YELLOW);
 
         final AppCompatButton btnStartMock = (AppCompatButton) findViewById(R.id.btn_start_mock);
         btnStartMock.setOnClickListener(new View.OnClickListener() {
@@ -116,6 +117,71 @@ public class MainActivity extends AppCompatActivity implements LocationListener,
         toolbar.setTitle(R.string.app_name);
         toolbar.setTitleTextColor(0xFFFFFFFF);
         setSupportActionBar(toolbar);
+
+        toolbar.setOnMenuItemClickListener(new Toolbar.OnMenuItemClickListener() {
+            @Override
+            public boolean onMenuItemClick(MenuItem item) {
+                switch (item.getItemId()) {
+                    case R.id.action_search:
+                        Toast.makeText(MainActivity.this, "Search !", Toast.LENGTH_SHORT).show();
+                        break;
+                }
+                return true;
+            }
+        });
+    }
+
+    public void observerLocationInfoModel() {
+        final TextView addressTextView = (TextView) findViewById(R.id.addressTextView);
+        final TextView longitudeTextView = (TextView) findViewById(R.id.longitudeTextView);
+        final TextView latitudeTextView = (TextView) findViewById(R.id.latitudeTextView);
+        currLocationInfoModel = ViewModelProviders.of(this).get(CurrLocationInfoModel.class);
+        final Observer<String> addressObserver = new Observer<String>() {
+            @Override
+            public void onChanged(String s) {
+                if (s == null || s.equals("")) {
+                    s = getString(R.string.unknown);
+                }
+                addressTextView.setText(getString(R.string.curr_location) + s);
+            }
+        };
+        currLocationInfoModel.getCurrAddress().observe(this,addressObserver);
+
+        final Observer<Double> longitudeObserver = new Observer<Double>() {
+            @Override
+            public void onChanged(Double aDouble) {
+                longitudeTextView.setText(getString(R.string.longitude) + aDouble.toString());
+            }
+        };
+        currLocationInfoModel.getCurrLongitude().observe(this,longitudeObserver);
+
+        final Observer<Double> latitudeObserver = new Observer<Double>() {
+            @Override
+            public void onChanged(Double aDouble) {
+                latitudeTextView.setText(getString(R.string.latitude) + aDouble.toString());
+            }
+        };
+        currLocationInfoModel.getCurrLatitude().observe(this,latitudeObserver);
+    }
+
+    public void updateLocationInfoModel(@Nullable String address, @Nullable Double longitude, @Nullable Double latitude) {
+        if (address != null) {
+            currLocationInfoModel.getCurrAddress().setValue(address);
+        }
+
+        if (longitude != null) {
+            currLocationInfoModel.getCurrLongitude().setValue(longitude);
+        }
+
+        if (latitude != null) {
+            currLocationInfoModel.getCurrLatitude().setValue(latitude);
+        }
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.menu_main, menu);
+        return true;
     }
 
     private void initLoc() {
@@ -174,75 +240,66 @@ public class MainActivity extends AppCompatActivity implements LocationListener,
             if (mockGPS == null) {
                 lm.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000,10,this);
                 mockGPS = new MockLocationProvider(LocationManager.GPS_PROVIDER, mContext);
-                mockGpsThread = createLoopThread(500, new Runnable() {
+                mockGpsThread = new MockLoopThread(new MockLoopThread.Action() {
                     @Override
-                    public void run() {
+                    public void todo() {
                         try {
                             mock(mockGPS);
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
                     }
-                });
+
+                    @Override
+                    public void end() {
+                        mockGPS.shutdown();
+                        mockGPS = null;
+                    }
+                }, 500);
             }
 
             if (mockWifi == null) {
                 lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,1000,10,this);
                 mockWifi = new MockLocationProvider(LocationManager.NETWORK_PROVIDER, mContext);
-                mockWIfiThread = createLoopThread(500, new Runnable() {
+                mockWIfiThread = new MockLoopThread(new MockLoopThread.Action() {
                     @Override
-                    public void run() {
+                    public void todo() {
                         try {
                             mock(mockWifi);
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
                     }
-                });
-            }
-        }
-    }
 
-    private Thread createLoopThread(final int delay, final Runnable todo) {
-        return new Thread() {
-            @Override
-            public void run() {
-                while (!Thread.currentThread().isInterrupted()) {
-                    try {
-                        Thread.sleep(delay);
-                        todo.run();
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                        Thread.currentThread().isInterrupted();
+                    @Override
+                    public void end() {
+                        mockWifi.shutdown();
+                        mockWifi = null;
                     }
-                }
+                }, 500);
             }
 
-            public void cancel() {
-                interrupt();
-            }
-        };
+            mockGpsThread.start();
+            mockWIfiThread.start();
+        }
     }
 
     private void stopMock() {
         if (mockGPS != null) {
-            mockGpsThread.interrupt();
-//            mockGPS.shutdown();
-//            mockGPS = null;
+            mockGpsThread.end();
         }
 
         if (mockWifi != null) {
-            mockWIfiThread.interrupt();
-//            mockWifi.shutdown();
-//            mockWifi = null;
+            mockWIfiThread.end();
         }
     }
 
     public void mock(MockLocationProvider mp) {
-        double lat, lon;
+        if (mp == null) return;
 
-        lat = Double.parseDouble("22.543624");
-        lon = Double.parseDouble("113.937164");
+        double lat, lon;
+        lat = currLocationInfoModel.getCurrLatitude().getValue();
+        lon = currLocationInfoModel.getCurrLongitude().getValue();
 
         LocationManager lm = (LocationManager) mContext.getSystemService(mContext.LOCATION_SERVICE);
         if (lm.getProvider(mp.providerName) != null) {
@@ -253,6 +310,15 @@ public class MainActivity extends AppCompatActivity implements LocationListener,
                 e.printStackTrace();
             }
         }
+    }
+
+    @Override
+    public void onMapClick(LatLng latLng) {
+        if (centerMark == null) {
+            centerMark = aMap.addMarker(markerOption);
+        }
+        centerMark.setPosition(latLng);
+        updateLocationInfoModel(null,latLng.longitude,latLng.latitude);
     }
 
     private void askRunTimePermissions() {
@@ -316,38 +382,28 @@ public class MainActivity extends AppCompatActivity implements LocationListener,
     public void onLocationChanged(AMapLocation amapLocation) {
         if (amapLocation != null) {
             if (amapLocation.getErrorCode() == 0) {
-                //定位成功回调信息，设置相关消息
-                amapLocation.getLocationType();//获取当前定位结果来源，如网络定位结果，详见官方定位类型表
-                amapLocation.getLatitude();//获取纬度
-                amapLocation.getLongitude();//获取经度
-                amapLocation.getAccuracy();//获取精度信息
-                SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-                Date date = new Date(amapLocation.getTime());
-                df.format(date);//定位时间
-                amapLocation.getAddress();//地址，如果option中设置isNeedAddress为false，则没有此结果，网络定位结果中会有地址信息，GPS定位不返回地址信息。
-                amapLocation.getCountry();//国家信息
-                amapLocation.getProvince();//省信息
-                amapLocation.getCity();//城市信息
-                amapLocation.getDistrict();//城区信息
-                amapLocation.getStreet();//街道信息
-                amapLocation.getStreetNum();//街道门牌号信息
-                amapLocation.getCityCode();//城市编码
-                amapLocation.getAdCode();//地区编码
-
                 // 如果不设置标志位，此时再拖动地图时，它会不断将地图移动到当前的位置
                 if (isFirstLoc) {
+                    //定位成功回调信息，设置相关消息
+                    Double longitude = amapLocation.getLongitude();//获取经度
+                    Double latitude = amapLocation.getLatitude();//获取纬度
+                    LatLng latLng = new LatLng(latitude,longitude);
+
+                    //获取定位信息
+                    StringBuffer buffer = new StringBuffer();
+                    buffer.append(amapLocation.getCountry() + "" + amapLocation.getProvince() + "" + amapLocation.getCity() + "" + amapLocation.getProvince() + "" + amapLocation.getDistrict() + "" + amapLocation.getStreet() + "" + amapLocation.getStreetNum());
+                    updateLocationInfoModel(buffer.toString(), longitude, latitude);
+
                     //设置缩放级别
                     aMap.moveCamera(CameraUpdateFactory.zoomTo(17));
                     //将地图移动到定位点
                     aMap.moveCamera(CameraUpdateFactory.changeLatLng(new LatLng(amapLocation.getLatitude(), amapLocation.getLongitude())));
                     //点击定位按钮 能够将地图的中心移动到定位点
                     mListener.onLocationChanged(amapLocation);
-                    //添加图钉
-                    aMap.addMarker(getMarkerOptions(amapLocation));
-                    //获取定位信息
-                    StringBuffer buffer = new StringBuffer();
-                    buffer.append(amapLocation.getCountry() + "" + amapLocation.getProvince() + "" + amapLocation.getCity() + "" + amapLocation.getProvince() + "" + amapLocation.getDistrict() + "" + amapLocation.getStreet() + "" + amapLocation.getStreetNum());
-                    Toast.makeText(getApplicationContext(), buffer.toString(), Toast.LENGTH_LONG).show();
+                    // 将定位点放置中心
+                    markerOption.position(latLng);
+                    centerMark = aMap.addMarker(markerOption);
+
                     isFirstLoc = false;
                 }
             } else {
@@ -361,21 +417,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener,
         }
     }
 
-    private MarkerOptions getMarkerOptions(AMapLocation amapLocation) {
-        //设置图钉选项
-        MarkerOptions options = new MarkerOptions();
-        //位置
-        options.position(new LatLng(amapLocation.getLatitude(), amapLocation.getLongitude()));
-        StringBuffer buffer = new StringBuffer();
-        buffer.append(amapLocation.getCountry() + "" + amapLocation.getProvince() + "" + amapLocation.getCity() +  "" + amapLocation.getDistrict() + "" + amapLocation.getStreet() + "" + amapLocation.getStreetNum());
-        //标题
-        options.title(buffer.toString());
-        //设置多少帧刷新一次图片资源
-        options.period(60);
-
-        return options;
-    }
-
     @Override
     public void onLocationChanged(Location location) {
     }
@@ -386,25 +427,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener,
 
     @Override
     public void onProviderEnabled(String provider) {
-        if (provider.equals(LocationManager.GPS_PROVIDER)) {
-            mockGpsThread.start();
-        }
-
-        if (provider.equals(LocationManager.NETWORK_PROVIDER)) {
-            mockWIfiThread.start();
-        }
     }
 
     @Override
     public void onProviderDisabled(String provider) {
-        if (provider.equals(LocationManager.GPS_PROVIDER)) {
-            mockGPS.shutdown();
-            mockGPS = null;
-        }
-
-        if (provider.equals(LocationManager.NETWORK_PROVIDER)) {
-            mockWifi.shutdown();
-            mockWifi = null;
-        }
     }
 }

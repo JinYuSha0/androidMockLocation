@@ -59,4 +59,5 @@ dependencies {
     implementation 'com.amap.api:map2d:latest.integration'
     implementation 'com.amap.api:search:latest.integration'
     implementation 'com.amap.api:location:latest.integration'
+    implementation 'androidx.lifecycle:lifecycle-extensions:2.1.0'
 }

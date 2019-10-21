@@ -36,9 +36,40 @@
         </androidx.appcompat.widget.LinearLayoutCompat>
 
         <androidx.appcompat.widget.LinearLayoutCompat
+            android:orientation="vertical"
             android:layout_width="match_parent"
-            android:layout_height="200dp"
+            android:layout_height="wrap_content"
             android:padding="20dp">
+
+            <TextView
+                android:id="@+id/addressTextView"
+                android:ellipsize="end"
+                android:singleLine="false"
+                android:maxLines="2"
+                android:text="@string/curr_location"
+                android:textAlignment="textStart"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="start"
+                android:layout_marginBottom="6dp"/>
+
+            <TextView
+                android:id="@+id/longitudeTextView"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:text="@string/longitude"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="6dp"/>
+
+            <TextView
+                android:id="@+id/latitudeTextView"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:text="@string/latitude"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="6dp"/>
 
             <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/btn_start_mock"

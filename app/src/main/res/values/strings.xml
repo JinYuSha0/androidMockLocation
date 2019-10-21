@@ -8,4 +8,8 @@
     <string name="search_address">搜索地址</string>
     <string name="start_mock">开始模拟</string>
     <string name="stop_mock">停止模拟</string>
+    <string name="curr_location">当前位置:</string>
+    <string name="longitude">经度:</string>
+    <string name="latitude">纬度:</string>
+    <string name="unknown">未知</string>
 </resources>
